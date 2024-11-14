@@ -1,3 +1,6 @@
 [submodule "application-operator"]
 	path = application-operator
 	url = https://github.com/aloysZY/application-operator.git
+[submodule "client-go-examples"]
+	path = client-go-examples
+	url = https://github.com/aloysZY/client-go-examples.git
