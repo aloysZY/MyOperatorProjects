@@ -4,3 +4,6 @@
 [submodule "client-go-examples"]
 	path = client-go-examples
 	url = https://github.com/aloysZY/client-go-examples.git
+[submodule "aloys-application-operator"]
+	path = aloys-application-operator
+	url = https://github.com/aloysZY/aloys-application-operator.git
