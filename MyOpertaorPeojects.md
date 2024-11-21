@@ -150,7 +150,7 @@ kubectl --raw='/apis/apps/v1/namespaces/default/deployments/nginx-deployment' -X
 假设您要删除一个名为 `nginx-deployment` 的 Deployment：
 
 ```bash
-kubectl --raw='/apis/apps/v1/namespaces/default/deployments/nginx-deployment' -X DELETE
+kubectl --raw='/apis/apps/ingv1/namespaces/default/deployments/nginx-deployment' -X DELETE
 ```
 
 ### 5.注意事项
@@ -215,9 +215,7 @@ GOOS=linux GOARCH=arm64 go build -v -o ./out-cluster .
 
 # 四、opertaor开发
 
-## 1、创建项目
-
-### 1.创建项目骨架
+## 1.创建项目骨架
 
 ```bash
 kubebuilder init --domain=aloys.cn --repo=github.com/aloys.zy/aloys-application-operator --owner Aloys.Zhou
@@ -229,7 +227,7 @@ kubebuilder init --domain=aloys.cn --repo=github.com/aloys.zy/aloys-application-
 >
 > 2）config/default/kustomization.yaml 的namespace和namePrefix配置
 
-### 2.创建api
+## 2.创建api
 
 ```bash
 kubebuilder create api --group apps --version v1 --kind Application 
@@ -237,7 +235,7 @@ kubebuilder create api --group apps --version v1 --kind Application
 
 > aloys-application-operator/api/v1/application_types.go 下// +kubebuilder:object:root=true 是一个特殊标记，主要是conteoller-tools识别，这个对象生成器认为这是一个Kind，会生成kind所需的代码（一个结构体要表示为一个Kind，必须要要实现runtime.Object接口），就是会生成aloys-application-operator/api/v1/zz_generated.deepcopy.go文件，就是实现了这个接口
 
-### 3.自定义字段
+## 3.自定义字段
 
 aloys-application-operator/api/v1/application_types.go ，新增自定义字段信息，就是CR部署的时候需要用到的信息
 
@@ -275,24 +273,24 @@ type ApplicationStatus struct {
 }
 ```
 
-### 3.实现调谐逻辑
+## 3.实现调谐逻辑
 
 aloys-application-operator/internal/controller/application_controller.go 中的Reconcile函数内实现具体的调谐逻辑
 
-### 4.添加权限
+## 4.添加权限
 
 aloys-application-operator/internal/controller/application_controller.go 最上面有添加权限的地方，直接添加注解，使用make manifests会生成相关权限
 
 这里因为调谐逻辑中涉及到deployment和service的操作，所以配置了这个权限
 
 ```go
-// +kubebuilder:rbac:groups=apps.aloys,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps.aloys,resources=deployments/status,verbs=get
-// +kubebuilder:rbac:groups=apps.aloys,resources=services,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps.aloys,resources=services/status,verbs=get
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
+// +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=services/status,verbs=get
 ```
 
-### 5.配置SetupWithManager
+## 5.配置SetupWithManager
 
 aloys-application-operator/internal/controller/application_controller.go
 
@@ -309,7 +307,7 @@ SkipNameValidation      *bool
     LogConstructor          func(request *request) logr.Logger
 ```
 
-### 6.添加别名
+## 6.添加别名
 
 aloys-application-operator/api/v1/application_types.go
 
@@ -324,7 +322,7 @@ type Application struct {
 }
 ```
 
-### 7.自定义打印列
+## 7.自定义打印列
 
 添加kubectl get 返回列信息
 
@@ -334,7 +332,165 @@ type Application struct {
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 ```
 
+## 8. 本地运行测试
 
+```bash
+make run
+```
+
+## 9.部署执行和卸载
+
+```bash
+#编译成镜像
+make docker-build IMG=aloys-application-operator:v0.0.1 
+#导入镜像到kind集群
+kind load docker-image aloys-application-operator:v0.0.1 --name aloys
+#部署controller资源到集群
+make deploy IMG=aloys-application-operator:v0.0.1 
+#卸载controller
+make undeploy IMG=aloys-application-operator:v0.0.1 
+```
+
+## 10.创建webhook
+
+```sh
+ kubebuilder create webhook --group apps --version ingv1 --kind Application --defaulting --programmatic-validation
+--defaulting 参数告诉 kubebuilder 为这个 webhook 创建一个默认值处理函数。当用户创建或更新资源时，如果某些字段没有被明确设置，那么这些字段将被自动填充默认值
+--programmatic-validation 参数指示 kubebuilder 创建一个程序化的验证 webhook。这种类型的 webhook 可以在资源被创建或更新前检查资源的状态，确保其符合特定的要求或规则
+```
+
+## 11.配置webhook
+
+### 修改main
+
+aloys-application-operator-webhook/cmd/ [main.go](aloys-application-operator-webhook/cmd/main.go) 
+
+```go
+	var webhookServer webhook.Server
+	// 为了在本地启动使用证书
+	if os.Getenv("ENV") == "DEV" {
+		path, _ := os.Getwd()
+		webhookServer = webhook.NewServer(webhook.Options{
+			TLSOpts: tlsOpts,
+			// 获取证书位置
+			CertDir: path + "/internal/webhook/certs",
+		})
+	} else {
+		// 修改配置，在这个基础上添加了环境变量的判断，这样在本地测试的时候传入变量即可
+		webhookServer = webhook.NewServer(webhook.Options{
+			TLSOpts: tlsOpts,
+		})
+	}
+```
+
+### 修改webhok
+
+aloys-application-operator-webhook/internal/webhook/ingv1/ [application_webhook.go](aloys-application-operator-webhook/internal/webhook/ingv1/application_webhook.go) 
+
+```go
+type ApplicationCustomDefaulter struct {
+	// TODO(user): Add more fields as needed for defaulting
+	// 可以自定义一些字段内容，在Default内进行使用
+	DefaultReplicas int32 `json:"-"`
+	// DefaultImage    string `json:"-"`
+}
+
+func SetupApplicationWebhookWithManager(mgr ctrl.Manager) error {
+	// 使用 NewWebhookManagedBy 方法创建一个新的 webhook，并设置了验证器和默认值处理器
+	return ctrl.NewWebhookManagedBy(mgr).For(&appsv1.Application{}).
+		// WithValidator数据验证
+		WithValidator(&ApplicationCustomValidator{}).
+		// WithDefaulter数据修改
+		// 自定义字段初始化后再校验
+		WithDefaulter(&ApplicationCustomDefaulter{DefaultReplicas: 1}).
+		Complete()
+}
+```
+
+### 本地运行
+
+aloys-application-operator-webhook/config/dev/ [kustomization.yaml](aloys-application-operator-webhook/config/dev/kustomization.yaml) 
+
+```yaml
+bases:
+  - ../default
+
+patches:
+  - patch: |
+      - op: "remove"
+        path: "/spec/dnsNames"
+    target:
+      kind: Certificate
+  - patch: |
+      - op: "add"
+        path: "/spec/ipAddresses"
+        value: ["172.20.10.3"]
+    target:
+      kind: Certificate
+  - patch: |
+      - op: "add"
+        path: "/webhooks/0/clientConfig/url"
+        value: "https://172.20.10.3:9443/mutate-apps-aloys-cn-ingv1-application"
+    target:
+      kind: MutatingWebhookConfiguration
+  - patch: |
+      - op: "add"
+        path: "/webhooks/0/clientConfig/url"
+        value: "https://172.20.10.3:9443/validate-apps-aloys-cn-ingv1-application"
+    target:
+      kind: ValidatingWebhookConfiguration
+  - patch: |
+      - op: "remove"
+        path: "/webhooks/0/clientConfig/service"
+    target:
+      kind: MutatingWebhookConfiguration
+  - patch: |
+      - op: "remove"
+        path: "/webhooks/0/clientConfig/service"
+    target:
+      kind: ValidatingWebhookConfiguration
+```
+
+> 172.20.10.3 是本机地址
+>
+> connect: connection refused 这个是本地没有开防火墙导致拦截
+>
+> ![image-20241120下午123208368](./MyOpertaorPeojects.assets/image-20241120下午123208368.png)
+>
+> 本地证书过期导致验证失败，在本地部署的时候 [certmanager](aloys-application-operator-webhook/config/certmanager) 会部署创建一张证书，可以使用这个证书解决
+>
+> ```
+> kubectl get secrets webhook-server-cert -
+> n webhook-system -o jsonpath='{..tls\.crt}' |base64 -d > certs/tls.crt
+> kubectl get secrets webhook-server-cert -n webhook-system -o jsonpath='{..tls\.key}' |base64 -d > certs/tls.key
+> 
+> ```
+>
+> ![image-20241120下午123233574](./MyOpertaorPeojects.assets/image-20241120下午123233574.png)
+
+## 12.多版本API（问题较多）
+
+```bash
+kubebuilder create api --group apps --version v2 --kind Application 
+INFO Create Resource [y/n]                        
+y
+INFO Create Controller [y/n]                      
+n
+创建另一个版本的api Controller 要选择否
+```
+
+aloys-application-operator-webhook-v2/api/ingv1/ [application_types.go](aloys-application-operator-webhook-v2/api/ingv1/application_types.go) 
+
+```
+添加默认版本,多版本API必须要存在
+// +kubebuilder:storageversion 
+```
+
+![image-20241120下午11535084](./MyOpertaorPeojects.assets/image-20241120下午11535084.png)
+
+多版本API可以使用同一个webhook来进行判断一些，但是其实v2的字段和v1不一样了，这时候controller的逻辑也要变，或者创建逻辑不一致的时候要从新写Reconcile
+
+可以在Reconcile里面配置一下，先获取到标准的
 
 # 二、Github 添加子仓库
 
@@ -360,3 +516,17 @@ git commit -m "init aloys-application-operator"
 ```
 
 ![image-20241114上午83813054](./MyOpertaorPeojects.assets/image-20241114上午83813054.png)
+
+# 五、错误处理
+
+## 1.ERROR   setup   unable to create controller  
+
+![image-20241118上午115649149](./MyOpertaorPeojects.assets/image-20241118上午115649149.png)![image-20241118上午115707220](./MyOpertaorPeojects.assets/image-20241118上午115707220.png)
+
+这是因为main.go文件注入的时候没有将自己的自定义类型注入进去导致的,appv1是自定义的别名
+
+## panic: interface conversion: client.Object is *ingv1.Deployment, not *ingv1.Application [recovered]
+
+![image-20241118下午22219765](./MyOpertaorPeojects.assets/image-20241118下午22219765.png)
+
+这是在进行监听的时候进行类型判断有错误，应该是判断是deployment类型，之前写的是Application类型，直接断言就报错了

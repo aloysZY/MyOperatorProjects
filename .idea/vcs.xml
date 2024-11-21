@@ -2,5 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/aloys-application-operator" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/aloys-application-operator-webhook" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/application-operator" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/client-go-examples" vcs="Git" />
   </component>
 </project>
