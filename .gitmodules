@@ -10,3 +10,6 @@
 [submodule "aloys-application-operator-webhook"]
 	path = aloys-application-operator-webhook
 	url = https://github.com/aloysZY/aloys-application-operator-webhook.git
+[submodule "aloys-webhook-example"]
+	path = aloys-webhook-example
+	url = https://github.com/aloysZY/aloys-webhook-example.git
