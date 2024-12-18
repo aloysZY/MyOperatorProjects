@@ -173,11 +173,11 @@ spec:
   replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      webhook: nginx
   template:
     metadata:
       labels:
-        app: nginx
+        webhook: nginx
     spec:
       containers:
       - name: nginx
@@ -312,7 +312,7 @@ SkipNameValidation      *bool
 aloys-application-operator/api/v1/application_types.go
 
 ```go
-// +kubebuilder:resource:path=applications,singular=application,scope=Namespaced,shortName=app
+// +kubebuilder:resource:path=applications,singular=application,scope=Namespaced,shortName=webhook
 type Application struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -517,6 +517,81 @@ git commit -m "init aloys-application-operator"
 
 ![image-20241114上午83813054](./MyOpertaorPeojects.assets/image-20241114上午83813054.png)
 
+# 五、单独创建webhook
+
+## 1.webhook
+
+单独创建webhook [webhook](../../../../../../kubernetes/kubernetes-1.31.2/test/images/agnhost/webhook)
+
+ https://github.com/kubernetes/kubernetes/tree/master/test/images/agnhost/webhook 使用K8S源码案例
+
+test/images/agnhost/webhook/main.go
+
+## 2.webhook配置
+
+这个webhook的配置是根据自己的webhook进行配置路径和授权
+
+![image-20241128上午94434980](./MyOpertaorPeojects.assets/image-20241128上午94434980.png)
+
+下面是一个示例，展示了如何为同一个 `MutatingWebhookConfiguration` 添加两个具有不同路径和规则的 `webhook`：
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-apps-aloys-cn-v1-application
+  failurePolicy: Fail
+  name: mapplication-v1.kb.io
+  rules:
+  - apiGroups:
+    - apps.aloys.cn
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - applications
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-deployments-v1-deployment
+  failurePolicy: Fail
+  name: mdeployment-v1.kb.io
+  rules:
+  - apiGroups:
+    - apps
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - deployments
+  sideEffects: None
+```
+
+- 第一个 `webhook` 处理 `apps.aloys.cn/v1` API 组下的 `applications` 资源的创建和更新操作，使用 `/mutate-apps-aloys-cn-v1-application` 路径。
+- 第二个 `webhook` 处理 `apps/v1` API 组下的 `deployments` 资源的创建和更新操作，使用 `/mutate-deployments-v1-deployment` 路径。
+
+## 3.修改配置文件
+
+修改内容对应文件内都有说明
+
+![image-20241211下午102208807](./MyOpertaorPeojects.assets/image-20241211下午102208807.png)
+
 # 五、错误处理
 
 ## 1.ERROR   setup   unable to create controller  
@@ -530,3 +605,7 @@ git commit -m "init aloys-application-operator"
 ![image-20241118下午22219765](./MyOpertaorPeojects.assets/image-20241118下午22219765.png)
 
 这是在进行监听的时候进行类型判断有错误，应该是判断是deployment类型，之前写的是Application类型，直接断言就报错了
+
+## unknown revision v0.0.0' errors, seemingly due to 'require k8s.io/foo v0.0.0
+
+https://github.com/kubernetes/kubernetes/issues/79384
