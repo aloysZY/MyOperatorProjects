@@ -13,3 +13,6 @@
 [submodule "aloys-webhook-example"]
 	path = aloys-webhook-example
 	url = https://github.com/aloysZY/aloys-webhook-example.git
+[submodule "toolsets"]
+	path = toolsets
+	url = https://github.com/aloysZY/toolsets.git
