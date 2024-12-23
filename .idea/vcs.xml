@@ -7,5 +7,6 @@
     <mapping directory="$PROJECT_DIR$/aloys-webhook-example" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/application-operator" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/client-go-examples" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/toolsets" vcs="Git" />
   </component>
 </project>
